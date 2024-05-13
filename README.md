@@ -8,4 +8,5 @@ This is our Project for Multimedia System Engineering. This system is an Baby Mo
 3. install required dependencies by using command ```pip install -r requirements.txt```
 4. run the project by navigate to the project folder ```cd baby_monitor``` then run with ```[python|python3] manage.py runserver```
 5. Disclaimer: if you add other dependencies on the project, don't forget to update the requirements.txt by typing ```pip freeze > requirements.txt```
+6. If you want to quit the virtual environment, you can use ```deactivate``` command in the virtual environment
 
