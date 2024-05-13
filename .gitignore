@@ -1,0 +1,9 @@
+# Virtual Environment. change this to your own virtual environment name
+my_env/
+
+# Ignore compiled Python files
+*.pyc
+
+# Ignore IDE specific files
+.idea/
+.vscode/
