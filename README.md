@@ -1,0 +1,1 @@
+# This is our Project for Multimedia System Engineering. This system is an Baby Monitoring System to monitor babies using video streaming and Machine Learning
