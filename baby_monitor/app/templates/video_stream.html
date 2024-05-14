@@ -1,0 +1,26 @@
+<!-- video_stream.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Video Streaming</title>
+</head>
+<body>
+    <video id="videoPlayer" autoplay></video>
+
+    <script>
+        const videoPlayer = document.getElementById('videoPlayer');
+        const socket = new WebSocket('ws://127.0.0.1:8000/video_stream');
+
+        socket.binaryType = 'arraybuffer';
+
+        socket.onmessage = function(event) {
+            const frameData = new Uint8Array(event.data);
+            const blob = new Blob([frameData], { type: 'image/jpeg' });
+            const imageUrl = URL.createObjectURL(blob);
+            videoPlayer.src = imageUrl;
+        };
+    </script>
+</body>
+</html>
