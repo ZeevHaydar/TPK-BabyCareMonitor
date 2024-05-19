@@ -7,14 +7,15 @@
 </head>
 <body>
     <img id="videoPlayer" autoplay></img>
-    <audio id="audioPlayer" autoplay></audio>
+    <audio id="audioPlayer" autoplay>
+    </audio>
 
     <script>
         const videoPlayer = document.getElementById('videoPlayer');
-        const audioPlayer = document.getElementById('audioPlayer');
+        const audioSource = document.getElementById('audioSource');
         
         const videoSocket = new WebSocket('ws://localhost:8000/ws/video_stream/');
-        // const audioSocket = new WebSocket('ws://localhost:8000/ws/audio_stream/');
+        const audioSocket = new WebSocket('ws://localhost:8000/ws/audio_stream/');
 
         videoSocket.onmessage = function(event) {
             const data = JSON.parse(event.data);
@@ -25,22 +26,20 @@
 
                 // Log the video data for debugging
                 // console.log('Video Data:', data['video']);
-                console.log('Image URL:', imageUrl);
+                // console.log('Image URL:', imageUrl);
             } 
         };
 
-        // audioSocket.onmessage = function(event) {
-        //     const data = JSON.parse(event.data);
-        //     if (data['audio']) {
-        //         const audioData = new Uint8Array(atob(data['audio']).split("").map(char => char.charCodeAt(0)));
-        //         const audioBlob = new Blob([audioData], { type: 'audio/wav' });
-        //         const audioUrl = URL.createObjectURL(audioBlob);
-        //         audioPlayer.src = audioUrl;
+        audioSocket.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            if (data['audio']) {
+                const audioData = data['audio'];
+                const audioUrl = `data:audio/wav;base64,${audioData}`;
+                audioPlayer.src = audioUrl;
 
-        //         // Log the audio data for debugging
-        //         console.log('Audio Data:', data['audio']);
-        //     }
-        // };
+                console.log('Audio Data:', data['audio']);
+            }
+        };
     </script>
 </body>
 </html>
