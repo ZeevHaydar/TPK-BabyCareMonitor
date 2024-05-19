@@ -1,26 +1,46 @@
-<!-- video_stream.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Video Streaming</title>
+    <title>Live Video and Audio Streaming</title>
 </head>
 <body>
-    <video id="videoPlayer" autoplay></video>
+    <img id="videoPlayer" autoplay></img>
+    <audio id="audioPlayer" autoplay></audio>
 
     <script>
         const videoPlayer = document.getElementById('videoPlayer');
-        const socket = new WebSocket('ws://127.0.0.1:8000/video_stream');
+        const audioPlayer = document.getElementById('audioPlayer');
+        
+        const videoSocket = new WebSocket('ws://localhost:8000/ws/video_stream/');
+        // const audioSocket = new WebSocket('ws://localhost:8000/ws/audio_stream/');
 
-        socket.binaryType = 'arraybuffer';
+        videoSocket.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            if (data['video']) {
+                const base64Data = data['video'];
+                const imageUrl = `data:image/jpeg;base64, ${base64Data}`;
+                videoPlayer.src = imageUrl;
 
-        socket.onmessage = function(event) {
-            const frameData = new Uint8Array(event.data);
-            const blob = new Blob([frameData], { type: 'image/jpeg' });
-            const imageUrl = URL.createObjectURL(blob);
-            videoPlayer.src = imageUrl;
+                // Log the video data for debugging
+                // console.log('Video Data:', data['video']);
+                console.log('Image URL:', imageUrl);
+            } 
         };
+
+        // audioSocket.onmessage = function(event) {
+        //     const data = JSON.parse(event.data);
+        //     if (data['audio']) {
+        //         const audioData = new Uint8Array(atob(data['audio']).split("").map(char => char.charCodeAt(0)));
+        //         const audioBlob = new Blob([audioData], { type: 'audio/wav' });
+        //         const audioUrl = URL.createObjectURL(audioBlob);
+        //         audioPlayer.src = audioUrl;
+
+        //         // Log the audio data for debugging
+        //         console.log('Audio Data:', data['audio']);
+        //     }
+        // };
     </script>
 </body>
 </html>
