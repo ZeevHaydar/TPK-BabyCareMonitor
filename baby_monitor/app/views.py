@@ -11,6 +11,11 @@ import re
 import tensorflow as tf
 import tensorflow_io as tfio
 import traceback
+import os
+
+dirname = os.path.dirname(__file__)
+saved_model_path = os.path.join(dirname, './../baby_cry_detection_model')
+model = tf.saved_model.load(saved_model_path)
 
 def video_stream_view(request):
     return render(request, 'video_stream.html')
@@ -51,18 +56,10 @@ def process_the_audio(request):
                     # Decode the WAV file and resample to 16 kHz
                     # file_contents = tf.io.read_file(wav_file)
                     file_contents = wav_file.read()
-                    wav, sample_rate = tf.audio.decode_wav(file_contents, desired_channels=1)
-                    wav = tf.squeeze(wav, axis=-1)
-                    sample_rate = tf.cast(sample_rate, dtype=tf.int64)
-
-                    # Resample the audio to 16 kHz
-                    wav_resampled = tfio.audio.resample(wav, rate_in=sample_rate, rate_out=16000)
-
-                    # Convert the resampled audio to numpy array
-                    audio_sequence = wav_resampled.numpy().astype(np.int16)
+                    wav = resample_wav_data(file_contents)
 
                     # Predict the audio using machine learning
-                    prediction, audio_duration = predict_audio(wav, sample_rate)
+                    prediction, audio_duration = predict_audio(wav)
                     
                     return JsonResponse({"prediction": prediction, "audio_duration": audio_duration})
                 except wave.Error:
@@ -84,21 +81,10 @@ def process_the_audio(request):
 
                     # Extract the base64 encoded part after the Data URI prefix
                     audio_data = base64.b64decode(base64_data.split(',')[1])
-                    
-                    # Decode the WAV data and resample to 16 kHz
-                    wav, sample_rate = tf.audio.decode_wav(audio_data, desired_channels=1)
-                    wav = tf.squeeze(wav, axis=-1)
-                    sample_rate = tf.cast(sample_rate, dtype=tf.int64)
-
-                    # Resample the audio to 16 kHz
-                    wav_resampled = tfio.audio.resample(wav, rate_in=sample_rate, rate_out=16000)
-
-                    # Convert the resampled audio to numpy array
-                    audio_sequence = wav_resampled.numpy().astype(np.int16)
-
+                    wav = resample_wav_data(audio_data)
 
                     # Predict the audio using machine learning
-                    prediction, audio_duration = predict_audio(wav, sample_rate)
+                    prediction, audio_duration = predict_audio(wav)
                     
                     return JsonResponse({"prediction": prediction, "audio_duration": audio_duration})
                 except (json.JSONDecodeError, KeyError, base64.binascii.Error):
@@ -120,11 +106,27 @@ def process_the_audio(request):
     
     return JsonResponse({"error": "Invalid HTTP method, only POST is allowed"}, status=405)
 
-def predict_audio(waveform, sampling_rate=44100):
-    # Implement your ML model prediction here
-    # This is a placeholder for your actual prediction logic
-    # For demonstration, let's return a dummy prediction
-    prediction = "This is a dummy prediction"
+def predict_audio(waveform, sampling_rate=16000):
+    """
+    Prediksi audio menggunakan YamNET yang dilakukan transfer learning agar hanya mendeteksi 
+    suara tangisan bayi. Fungsi akan menerima data waveform yang sudah diresample dengan 
+    sampling rate 16000 Hz dan berbentuk 1-dimensional.
+    """
+    result_class = ['Yes', 'No']
+    results = model(waveform)
+    prediction = result_class[tf.math.argmax(results)]
     num_samples = tf.shape(waveform)[0]
     duration = tf.cast(num_samples, dtype=tf.float32) / tf.cast(sampling_rate, dtype=tf.float32)
     return prediction, float(duration.numpy())
+
+@tf.function
+def resample_wav_data(file_contents):
+    """ Get audio data, convert it to a float tensor, resample to 16 kHz single-channel audio. """
+    wav, sample_rate = tf.audio.decode_wav(
+          file_contents,
+          desired_channels=1)
+    print(wav)
+    wav = tf.squeeze(wav, axis=-1)
+    sample_rate = tf.cast(sample_rate, dtype=tf.int64)
+    wav = tfio.audio.resample(wav, rate_in=sample_rate, rate_out=16000)
+    return wav
