@@ -7,10 +7,13 @@ from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import render
 from django.http import JsonResponse
 import wave
+import re
+import tensorflow as tf
+import tensorflow_io as tfio
+import traceback
 
 def video_stream_view(request):
     return render(request, 'video_stream.html')
-
 
 
 @csrf_exempt
@@ -21,66 +24,107 @@ def process_the_audio(request):
     membuat prediksi pada data audio tersebut.
 
     Args:
-        request (HttpRequest): The HTTP request object.\n
-        argumen JSON yang digunakan bisa berupa
-        
-            header: "Content-Type: application/json"\n
-            body: 
-            ```json
-            {
-                "base64": "your_base64_encoded_wav_data_here"
-            }
-            ```\n
-        atau dengan file dengan mengirimnya method POST melalui form yang di dalamnya terdapat id "wav" yang berisi file .wav
+    \trequest (HttpRequest): The HTTP request object.\n
+    \targumen JSON yang digunakan bisa berupa
+    
+    \t    header: "Content-Type: application/json"\n
+    \t    body: 
+    \t      ```json
+                {"base64": "your_base64_encoded_wav_data_here [format Data URI]"}
+    ```
+
+    atau dengan file dengan mengirimnya method POST melalui form yang di dalamnya 
+    terdapat id "wav" yang berisi file .wav dan memiliki enctype="multipart/form-data".\n
 
     Returns:
-        JsonResponse: Sebuah JSON response yang mengandung hasil prediksi atau pesan error.
+            JsonResponse: Sebuah JSON response yang mengandung hasil prediksi atau pesan error.
     """
     if request.method == 'POST':
-        if 'base64' in request.POST:
-            try:
-                data = json.loads(request.body)
-                audio_data = base64.b64decode(data['base64'])
-                audio_sequence = np.frombuffer(audio_data, dtype=np.int16)  # Assuming 16-bit PCM
-                
-                with wave.open(BytesIO(audio_data), 'rb') as wav:
-                    audio_sequence = np.frombuffer(wav.readframes(wav.getnframes()), dtype=np.int16)
-                
-                # Predict the audio using machine learning
-                prediction = predict_audio(audio_sequence)
-                
-                return JsonResponse({"prediction": prediction})
-            except (json.JSONDecodeError, KeyError, base64.binascii.Error):
-                return JsonResponse({"error": "Invalid base64 data"}, status=400)
-            except Exception as e:
-                return JsonResponse({"error": str(e)}, status=500)
-        
-        elif 'wav' in request.FILES:
-            # Handle WAV file upload
-            try:
-                wav_file = request.FILES['wav']
-                if not wav_file.name.lower().endswith('.wav'):
-                    return JsonResponse({"error": "Invalid file extension, only .wav files are supported"}, status=400)
+        try:
+            if 'wav' in request.FILES:
+                try:
+                    wav_file = request.FILES['wav']
+                    print(wav_file.name)
+                    if not wav_file.name.lower().endswith('.wav'):
+                        return JsonResponse({"error": "Invalid file extension, only .wav files are supported"}, status=400)
 
-                with wave.open(BytesIO(wav_file.read()), 'rb') as wav:
-                    audio_sequence = np.frombuffer(wav.readframes(wav.getnframes()), dtype=np.int16)
-                
-                # Predict the audio using machine learning
-                prediction = predict_audio(audio_sequence)
-                
-                return JsonResponse({"prediction": prediction})
-            except wave.Error:
-                return JsonResponse({"error": "Invalid WAV file"}, status=400)
-            except Exception as e:
-                return JsonResponse({"error": str(e)}, status=500)
+                    # Decode the WAV file and resample to 16 kHz
+                    # file_contents = tf.io.read_file(wav_file)
+                    file_contents = wav_file.read()
+                    wav, sample_rate = tf.audio.decode_wav(file_contents, desired_channels=1)
+                    wav = tf.squeeze(wav, axis=-1)
+                    sample_rate = tf.cast(sample_rate, dtype=tf.int64)
+
+                    # Resample the audio to 16 kHz
+                    wav_resampled = tfio.audio.resample(wav, rate_in=sample_rate, rate_out=16000)
+
+                    # Convert the resampled audio to numpy array
+                    audio_sequence = wav_resampled.numpy().astype(np.int16)
+
+                    # Predict the audio using machine learning
+                    prediction, audio_duration = predict_audio(wav, sample_rate)
+                    
+                    return JsonResponse({"prediction": prediction, "audio_duration": audio_duration})
+                except wave.Error:
+                    return JsonResponse({"error": "Invalid WAV file"}, status=400)
+                except Exception as e:
+                    traceback_str = traceback.format_exc()
+
+                    # Return JsonResponse with error message and stack trace
+                    return JsonResponse({"error": str(e), "traceback": traceback_str}, status=500)
+            
+            elif 'b64' in json.loads(request.body.decode('utf-8')):
+                try:
+                    data = json.loads(request.body)
+                    base64_data = data['b64']
+
+                    # Check if the base64 data is in Data URI format
+                    if not re.match(r'data:audio/wav;base64,', base64_data):
+                        return JsonResponse({"error": "Invalid base64 data, must be in Data URI format"}, status=400)
+
+                    # Extract the base64 encoded part after the Data URI prefix
+                    audio_data = base64.b64decode(base64_data.split(',')[1])
+                    
+                    # Decode the WAV data and resample to 16 kHz
+                    wav, sample_rate = tf.audio.decode_wav(audio_data, desired_channels=1)
+                    wav = tf.squeeze(wav, axis=-1)
+                    sample_rate = tf.cast(sample_rate, dtype=tf.int64)
+
+                    # Resample the audio to 16 kHz
+                    wav_resampled = tfio.audio.resample(wav, rate_in=sample_rate, rate_out=16000)
+
+                    # Convert the resampled audio to numpy array
+                    audio_sequence = wav_resampled.numpy().astype(np.int16)
+
+
+                    # Predict the audio using machine learning
+                    prediction, audio_duration = predict_audio(wav, sample_rate)
+                    
+                    return JsonResponse({"prediction": prediction, "audio_duration": audio_duration})
+                except (json.JSONDecodeError, KeyError, base64.binascii.Error):
+                    return JsonResponse({"error": "Invalid base64 data"}, status=400)
+                except Exception as e:
+                    traceback_str = traceback.format_exc()
+
+                    # Return JsonResponse with error message and stack trace
+                    return JsonResponse({"error": str(e), "traceback": traceback_str}, status=500)
         
-        else:
-            return JsonResponse({"error": "Invalid request, no audio data found"}, status=400)
+            else:
+                return JsonResponse({"error": "Invalid request, no audio data found"}, status=400)
+        except Exception as e:
+            # Get the stack trace as a string
+            traceback_str = traceback.format_exc()
+
+            # Return JsonResponse with error message and stack trace
+            return JsonResponse({"error": str(e), "traceback": traceback_str}, status=500)
     
     return JsonResponse({"error": "Invalid HTTP method, only POST is allowed"}, status=405)
 
-def predict_audio(audio_sequence):
+def predict_audio(waveform, sampling_rate=44100):
     # Implement your ML model prediction here
     # This is a placeholder for your actual prediction logic
     # For demonstration, let's return a dummy prediction
-    return "This is a dummy prediction"
+    prediction = "This is a dummy prediction"
+    num_samples = tf.shape(waveform)[0]
+    duration = tf.cast(num_samples, dtype=tf.float32) / tf.cast(sampling_rate, dtype=tf.float32)
+    return prediction, float(duration.numpy())
