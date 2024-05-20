@@ -20,6 +20,9 @@ model = tf.saved_model.load(saved_model_path)
 def video_stream_view(request):
     return render(request, 'video_stream.html')
 
+@csrf_exempt
+def hello_world(request):
+    return JsonResponse({"message": "Hello, World!"})
 
 @csrf_exempt
 def process_the_audio(request):
