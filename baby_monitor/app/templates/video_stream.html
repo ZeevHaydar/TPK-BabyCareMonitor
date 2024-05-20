@@ -15,7 +15,7 @@
         const audioSource = document.getElementById('audioSource');
         
         const videoSocket = new WebSocket('ws://localhost:8000/ws/video_stream/');
-        const audioSocket = new WebSocket('ws://localhost:8000/ws/audio_stream/');
+        // const audioSocket = new WebSocket('ws://localhost:8000/ws/audio_stream/');
 
         videoSocket.onmessage = function(event) {
             const data = JSON.parse(event.data);
@@ -30,16 +30,16 @@
             } 
         };
 
-        audioSocket.onmessage = function(event) {
-            const data = JSON.parse(event.data);
-            if (data['audio']) {
-                const audioData = data['audio'];
-                const audioUrl = `data:audio/wav;base64,${audioData}`;
-                audioPlayer.src = audioUrl;
+        // audioSocket.onmessage = function(event) {
+        //     const data = JSON.parse(event.data);
+        //     if (data['audio']) {
+        //         const audioData = data['audio'];
+        //         const audioUrl = `data:audio/wav;base64,${audioData}`;
+        //         audioPlayer.src = audioUrl;
 
-                console.log('Audio Data:', data['audio']);
-            }
-        };
+        //         console.log('Audio Data:', data['audio']);
+        //     }
+        // };
     </script>
 </body>
 </html>
