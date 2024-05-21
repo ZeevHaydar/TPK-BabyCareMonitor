@@ -8,16 +8,21 @@ import numpy as np
 import sounddevice as sd
 import asyncio
 from pvrecorder import PvRecorder
+import logging
 
+logger = logging.getLogger(__name__)
 class VideoStreamConsumer(AsyncWebsocketConsumer):
     connected_clients = set()  # To keep track of all connected clients
 
     async def connect(self):
         await self.accept()
         self.connected_clients.add(self)
+        logger.info(f"Client connected: {self}")
 
     async def disconnect(self, close_code):
-        self.connected_clients.remove(self)
+        if self in self.connected_clients:
+            self.connected_clients.remove(self)
+            logger.info(f"Client disconnected: {self}")
 
     async def receive(self, text_data):
         data = json.loads(text_data)
@@ -27,9 +32,20 @@ class VideoStreamConsumer(AsyncWebsocketConsumer):
             await self.broadcast_video_frame(frame_data)
 
     async def broadcast_video_frame(self, frame_data):
+        disconnected_clients = set()
         for client in self.connected_clients:
             if client != self:  # Do not send to self
-                await client.send(text_data=json.dumps({'video': frame_data}))
+                try:
+                    await client.send(text_data=json.dumps({'video': frame_data}))
+                except Exception as e:
+                    logger.error(f"Error sending to client {client}: {e}")
+                    disconnected_clients.add(client)
+        
+        # Remove disconnected clients from the set
+        for client in disconnected_clients:
+            self.connected_clients.remove(client)
+            logger.info(f"Removed disconnected client: {client}")
+
 
 
 class AudioStreamConsumer(AsyncWebsocketConsumer):
