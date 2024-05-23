@@ -17,12 +17,34 @@ dirname = os.path.dirname(__file__)
 saved_model_path = os.path.join(dirname, './../baby_cry_detection_model')
 model = tf.saved_model.load(saved_model_path)
 
+current_song = ""
+is_baby_crying = False
+
 def video_stream_view(request):
     return render(request, 'video_stream.html')
 
 @csrf_exempt
 def hello_world(request):
     return JsonResponse({"message": "Hello, World!"})
+
+@csrf_exempt
+def baby_song(request):
+    global current_song
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            current_song = data['song']
+            return JsonResponse({"message": f"Current song changed to {current_song}"})
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=400)
+    
+    if request.method == 'GET':
+        return JsonResponse({"message": "Current song fetched successfully", "current_song": current_song})
+
+@csrf_exempt
+def check_baby_status(request):
+    global is_baby_crying
+    return JsonResponse({"message": "Succesfully fetched baby status", "is_baby_crying": is_baby_crying})
 
 @csrf_exempt
 def process_the_audio(request):
@@ -47,6 +69,7 @@ def process_the_audio(request):
     Returns:
             JsonResponse: Sebuah JSON response yang mengandung hasil prediksi atau pesan error.
     """
+    global is_baby_crying
     if request.method == 'POST':
         try:
             if 'wav' in request.FILES:
@@ -63,8 +86,11 @@ def process_the_audio(request):
 
                     # Predict the audio using machine learning
                     prediction, audio_duration = predict_audio(wav)
-                    
-                    return JsonResponse({"prediction": prediction, "audio_duration": audio_duration})
+                    is_baby_crying = prediction == 'Yes'
+                    return JsonResponse({"message": "Audio succesfully processed", 
+                                         "prediction": prediction, 
+                                         "audio_duration": audio_duration,
+                                         "current_song": current_song})
                 except wave.Error:
                     return JsonResponse({"error": "Invalid WAV file"}, status=400)
                 except Exception as e:
@@ -88,8 +114,11 @@ def process_the_audio(request):
 
                     # Predict the audio using machine learning
                     prediction, audio_duration = predict_audio(wav)
-                    
-                    return JsonResponse({"prediction": prediction, "audio_duration": audio_duration})
+                    is_baby_crying = prediction == 'Yes'
+                    return JsonResponse({"message": "Audio succesfully processed", 
+                                         "prediction": prediction, 
+                                         "audio_duration": audio_duration,
+                                         "current_song": current_song})
                 except (json.JSONDecodeError, KeyError, base64.binascii.Error):
                     return JsonResponse({"error": "Invalid base64 data"}, status=400)
                 except Exception as e:
